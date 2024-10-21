@@ -1,0 +1,59 @@
+[package]
+name = "rust_roslibrust_trial"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.40.0", features = ["full"] }
+futures-util = "0.3.31"
+tokio-tungstenite = {version = "0.24.0", features = ["native-tls"]}
+futures-channel = "0.3.31"
+serde = "1.0.210"
+serde_json = "1.0.132"
+
+
+
+# [dependencies]
+# roslibrust = "0.11.0"
+# roslibrust_codegen_macro = "0.11.0"
+# roslibrust_codegen = "0.11.0"
+# abort-on-drop = "0.2"
+# anyhow = "1.0"
+# byteorder = "1.4"
+# dashmap = "5.3"
+# deadqueue = "0.2.4" # .4+ is required to fix bug with missing tokio dep
+# futures = "0.3"
+# futures-util = "0.3"
+# lazy_static = "1.4"
+# log = "0.4"
+# proc-macro2 = "1.0"
+# rand = "0.8"
+# serde = { version = "1.0", features = ["derive"] }
+# serde_json = "1.0"
+# smart-default = "0.6"
+# thiserror = "1.0"
+# tokio = { version = "1.20", features = [
+#     "net",
+#     "macros",
+#     "time",
+#     "rt-multi-thread",
+# ] }
+# tokio-tungstenite = "0.24.0"
+# uuid = { version = "1.1", features = ["v4"] }
+# simple_logger = "5.0"
+
+# [dev-dependencies]
+# env_logger = "0.10"
+# test-log = "0.2"
+# serde-big-array = "0.5"
+
+# [features]
+# default = []
+# # Note: all does not include running_bridge as that is only intended for CI
+# all = []
+# # Provides a rosapi rust interface
+# rosapi = []
+# # Intended for use with tests, includes tests that rely on a locally running rosbridge
+# running_bridge = []
+# ros2_test = ["running_bridge"]
+# # Provides access to experimental abstract trait topic_provider
