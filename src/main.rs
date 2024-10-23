@@ -14,6 +14,18 @@ async fn main() {
 
     let (mut sender_ws, mut reader_ws) = ws_stream.split();
 
+
+    let subscribe_msg = json!(
+        {
+            "op": "subscribe",
+            "topic": "/topic",
+            "type": "std_msgs/Int32",
+        }
+    );
+    let subscribe_msg = Message::Text(subscribe_msg.to_string());
+    println!("Sending subscription: {:?}", &subscribe_msg);
+    sender_ws.send(subscribe_msg);
+
     // Spawn a task to process incoming messages
     tokio::spawn(async move {
         while let Some(Ok(msg)) = reader_ws.next().await {
@@ -69,7 +81,8 @@ async fn handle_incoming_messages(mut rx_ch:futures_channel::mpsc::UnboundedRece
 }
 
 async fn handle_message(msg:String){
-    let v  = serde_json::from_str(&msg);
+    println!("Handling message: {:?}",msg);
+    //let v  = serde_json::from_str(&msg).unwrap();
 }
 
 async fn send_msg(write: &mut SplitSink<WebSocketStream<impl AsyncWrite + AsyncRead + Unpin>, Message>,msg: &str){
