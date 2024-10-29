@@ -4,92 +4,157 @@ use tokio_tungstenite::{connect_async, tungstenite::protocol::Message, WebSocket
 use serde::{Serialize, Deserialize};
 use serde_json::{json,Value};
 
-#[tokio::main]
-async fn main() {
-    let url : &str = "ws://localhost:8765";
-    let (mut tx_ch, mut rx_ch) = futures_channel::mpsc::unbounded();
 
+// Define a Foxglove Subscribe Request
+#[derive(Serialize)]
+struct SubscribeRequest {
+    #[serde(rename = "op")]
+    operation: String,
+    id: String,
+    topic: String,
+}
+
+// Define a Foxglove Message structure for publishing data
+#[derive(Serialize)]
+struct FoxglovePublish {
+    #[serde(rename = "op")]
+    operation: String,
+    id: String,
+    topic: String,
+    msg: serde_json::Value,
+}
+
+#[derive(Deserialize, Debug)]
+struct FoxgloveResponse {
+    topic: String,
+    data: String,
+}
+
+async fn websocket_client() {
+    // Connect to the Foxglove Bridge WebSocket server
+    let url = "ws://localhost:8765";
+    let protocol =  ["foxglove.websocket.v1"];
     let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
-    println!("WebSocket handshake has been successfully completed");
+    let (mut write, mut read) = ws_stream.split();
 
-    let (mut sender_ws, mut reader_ws) = ws_stream.split();
+    // Subscribe to the ROS2 topic "topic"
+    let subscribe_msg = SubscribeRequest {
+        operation: "subscribe".to_string(),
+        id: "1".to_string(),
+        topic: "topic".to_string(),
+    };
+    let subscribe_json = serde_json::to_string(&subscribe_msg).unwrap();
+    write.send(Message::Text(subscribe_json)).await.unwrap();
 
-
-    let subscribe_msg = json!(
-        {
-            "op": "subscribe",
-            "topic": "/topic",
-            "type": "std_msgs/Int32",
-        }
-    );
-    let subscribe_msg = Message::Text(subscribe_msg.to_string());
-    println!("Sending subscription: {:?}", &subscribe_msg);
-    sender_ws.send(subscribe_msg);
-
-    // Spawn a task to process incoming messages
+    // Read incoming messages from the WebSocket
     tokio::spawn(async move {
-        while let Some(Ok(msg)) = reader_ws.next().await {
-            if let Message::Text(text_msg) = msg {
-                // Send message to the channel for parallel processing
-                if tx_ch.unbounded_send(text_msg).is_err() {
-                    println!("Receiver dropped");
-                    return;
+        while let Some(message) = read.next().await {
+            if let Ok(msg) = message {
+                if let Message::Text(text) = msg {
+                    let response: FoxgloveResponse = serde_json::from_str(&text).unwrap();
+                    println!("Received data from topic {}: {:?}", response.topic, response.data);
                 }
             }
         }
     });
 
-    // Spawn tasks to process messages concurrently from the channel
-    while let Some(msg) = rx_ch.next().await {
-        // Spawn a new task for each message to process them in parallel
-        tokio::spawn(handle_message(msg));
-    }
+    // Publish an Int32 message to ROS2 topic "topic"
+    let int_msg = json!({
+        "data": 42  // Example data, Int32 ROS message structure
+    });
 
-    //Handle incoming messages in a seperate task
-    //let read_handle = tokio::spawn(handle_incoming_messages(rx_ch));
-    //let _ = tokio::try_join!(read_handle);
+    let publish_msg = FoxglovePublish {
+        operation: "publish".to_string(),
+        id: "2".to_string(),
+        topic: "topic".to_string(),
+        msg: int_msg,
+    };
 
-
-    //pin_mut!(rxch_to_ws, ws_to_txch);
-    //future::select(rxch_to_ws, ws_to_txch).await;
+    let publish_json = serde_json::to_string(&publish_msg).unwrap();
+    write.send(Message::Text(publish_json)).await.unwrap();
 }
 
-// Our helper method which will read data from stdin and send it along the
-// sender provided.
-async fn read_stdin(tx_ch: futures_channel::mpsc::UnboundedSender<Message>) {
-    // loop {
-    //     let mut buf = vec![0; 1024];
-    //     let n = match stdin.read(&mut buf).await {
-    //         Err(_) | Ok(0) => break,
-    //         Ok(n) => n,
-    //     };
-    //     buf.truncate(n);
-    //     tx_ch.unbounded_send(Message::binary(buf)).unwrap();
-    //}
+#[tokio::main]
+async fn main() {
+    websocket_client().await;
 }
 
 
 
-async fn handle_incoming_messages(mut rx_ch:futures_channel::mpsc::UnboundedReceiver<Message>){
+
+// #[tokio::main]
+// async fn main() {
+//     let url : &str = "ws://localhost:8765";
+//     let (mut tx_ch, mut rx_ch) = futures_channel::mpsc::unbounded();
+
+//     let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
+//     println!("WebSocket handshake has been successfully completed");
+
+//     let (mut sender_ws, mut reader_ws) = ws_stream.split();
+
+
+//     let subscribe_msg = json!(
+//         {
+//             "op": "subscribe",
+//             "topic": "/topic",
+//             "type": "std_msgs/Int32",
+//         }
+//     );
+//     let subscribe_msg = Message::Text(subscribe_msg.to_string());
+//     println!("Sending subscription: {:?}", &subscribe_msg);
+//     sender_ws.send(subscribe_msg);
+
+//     // Spawn a task to process incoming messages
+//     tokio::spawn(async move {
+//         while let Some(Ok(msg)) = reader_ws.next().await {
+//             if let Message::Text(text_msg) = msg {
+//                 // Send message to the channel for parallel processing
+//                 if tx_ch.unbounded_send(text_msg).is_err() {
+//                     println!("Receiver dropped");
+//                     return;
+//                 }
+//             }
+//         }
+//     });
+
+//     // Spawn tasks to process messages concurrently from the channel
+//     while let Some(msg) = rx_ch.next().await {
+//         // Spawn a new task for each message to process them in parallel
+//         tokio::spawn(handle_message(msg));
+//     }
+
+//     //Handle incoming messages in a seperate task
+//     //let read_handle = tokio::spawn(handle_incoming_messages(rx_ch));
+//     //let _ = tokio::try_join!(read_handle);
+
+
+//     //pin_mut!(rxch_to_ws, ws_to_txch);
+//     //future::select(rxch_to_ws, ws_to_txch).await;
+// }
+
+
+
+
+// async fn handle_incoming_messages(mut rx_ch:futures_channel::mpsc::UnboundedReceiver<Message>){
     
-    while let Some(message) = rx_ch.next().await{
-        if let Ok(msg) = message.into_text(){
-            tokio::spawn(handle_message(msg));
-        }
+//     while let Some(message) = rx_ch.next().await{
+//         if let Ok(msg) = message.into_text(){
+//             tokio::spawn(handle_message(msg));
+//         }
        
-    }
-}
+//     }
+// }
 
-async fn handle_message(msg:String){
-    println!("Handling message: {:?}",msg);
-    //let v  = serde_json::from_str(&msg).unwrap();
-}
+// async fn handle_message(msg:String){
+//     println!("Handling message: {:?}",msg);
+//     //let v  = serde_json::from_str(&msg).unwrap();
+// }
 
-async fn send_msg(write: &mut SplitSink<WebSocketStream<impl AsyncWrite + AsyncRead + Unpin>, Message>,msg: &str){
-    println!("Sending a message {}",msg);
-    let msg = Message::Text(msg.into());
-    write.send(msg).await.expect("Failed to send msg");
-}
+// async fn send_msg(write: &mut SplitSink<WebSocketStream<impl AsyncWrite + AsyncRead + Unpin>, Message>,msg: &str){
+//     println!("Sending a message {}",msg);
+//     let msg = Message::Text(msg.into());
+//     write.send(msg).await.expect("Failed to send msg");
+// }
 
 
 //#####TOKIO TUNGSTENITE WEBSOCKET EXAMPLE
